@@ -167,7 +167,7 @@ export default function Canvas({
     const handleGlobalMouseUp = () => {
       if (!draggingId) return;
 
-      // Check for collision with other elements
+      // Find current dragging element
       const draggingElement = canvasElements.find((el) => el.id === draggingId);
       if (!draggingElement) {
         setDraggingId(null);
@@ -176,11 +176,30 @@ export default function Canvas({
         return;
       }
 
-      // Find colliding element
+      // 1) If released near sidebar edge, delete the element
+      //    - On mobile: bottom sidebar → delete when near bottom of canvas
+      //    - On desktop: right sidebar → delete when near right edge of canvas
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (canvasRect) {
+        const isMobile = window.innerWidth < 768;
+        const deleteMargin = 64; // pixels from edge
+
+        const nearBottom = isMobile && draggingElement.y > canvasRect.height - deleteMargin;
+        const nearRight = !isMobile && draggingElement.x > canvasRect.width - deleteMargin;
+
+        if (nearBottom || nearRight) {
+          onRemoveElement(draggingId);
+          setDraggingId(null);
+          setDragStart(null);
+          setHoveredElementId(null);
+          return;
+        }
+      }
+
+      // 2) Otherwise, check for collision with other elements to combine
       const collidingElement = findCollidingElement(draggingElement);
       
       if (collidingElement) {
-        // Combine elements
         onCombineElements(draggingId, collidingElement.id);
         setDraggingId(null);
         setDragStart(null);
@@ -188,6 +207,7 @@ export default function Canvas({
         return;
       }
 
+      // 3) No delete or combine → just drop in place
       if (soundEnabled && soundManager) {
         soundManager.playDrop();
       }

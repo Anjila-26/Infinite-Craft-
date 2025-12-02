@@ -172,15 +172,17 @@ export default function ConstellationBackground() {
       // Remove lines that are no longer active
       const linesToRemove: number[] = [];
       linesRef.current.forEach((lineElement, lineId) => {
-        const lineKey = lineElement.getAttribute('data-line-key');
-        if (!lineKey || !activeLines.has(lineKey)) {
+        const lineKeyAttr = lineElement.getAttribute('data-line-key');
+        if (!lineKeyAttr || !activeLines.has(lineKeyAttr)) {
           linesToRemove.push(lineId);
           // Cancel existing animation if any
-          const existingAnim = lineAnimationsRef.current.get(lineKey);
+          const existingAnim = lineAnimationsRef.current.get(lineKeyAttr ?? '');
           if (existingAnim && typeof existingAnim.pause === 'function') {
             existingAnim.pause();
           }
-          lineAnimationsRef.current.delete(lineKey);
+          if (lineKeyAttr) {
+            lineAnimationsRef.current.delete(lineKeyAttr);
+          }
           // Remove line immediately
           lineElement.remove();
         }
