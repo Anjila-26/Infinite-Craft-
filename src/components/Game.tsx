@@ -349,11 +349,36 @@ export default function Game() {
   // Mobile: handle touch drop from sidebar to canvas (position in viewport coords)
   const handleSidebarTouchDrop = useCallback(
     (element: Element, clientX: number, clientY: number) => {
+      // Convert viewport coordinates to canvas coordinates
+      // The canvas is fixed inset-0, so we can use clientX/clientY directly
+      // But we need to account for any offsets
+      const canvasElement = document.querySelector('[data-canvas-container]') as HTMLElement;
+      const canvasRect = canvasElement?.getBoundingClientRect();
+      
+      if (!canvasRect) {
+        // Fallback: use clientX/clientY directly if we can't find canvas
+        const newCanvasElement: CanvasElement = {
+          id: generateId(),
+          elementId: element.id,
+          x: clientX,
+          y: clientY,
+        };
+        handleAddElement(newCanvasElement);
+        if (soundEnabled && soundManager) {
+          soundManager.playDrop();
+        }
+        return;
+      }
+
+      // Convert to canvas-relative coordinates
+      const canvasX = clientX - canvasRect.left;
+      const canvasY = clientY - canvasRect.top;
+
       // First, see if we're dropping on top of an existing canvas element → combine
       const collisionThreshold = 60;
       const target = canvasElements.find((canvasEl) => {
-        const dx = canvasEl.x - clientX;
-        const dy = canvasEl.y - clientY;
+        const dx = canvasEl.x - canvasX;
+        const dy = canvasEl.y - canvasY;
         const distance = Math.sqrt(dx * dx + dy * dy);
         return distance < collisionThreshold;
       });
@@ -368,8 +393,8 @@ export default function Game() {
       const newCanvasElement: CanvasElement = {
         id: generateId(),
         elementId: element.id,
-        x: clientX,
-        y: clientY,
+        x: canvasX,
+        y: canvasY,
       };
 
       handleAddElement(newCanvasElement);

@@ -11,12 +11,17 @@ interface SidebarProps {
   onTouchDropFromSidebar?: (element: Element, clientX: number, clientY: number) => void;
 }
 
-type SortMode = "discoveries" | "time";
+type SortMode = "time" | "name" | "emoji" | "length" | "random";
 
-export default function Sidebar({ elements, onElementClick, onDeleteElement, onTouchDropFromSidebar }: SidebarProps) {
+export default function Sidebar({
+  elements,
+  onElementClick,
+  onDeleteElement,
+  onTouchDropFromSidebar,
+}: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteMode, setDeleteMode] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>("discoveries");
+  const [sortMode, setSortMode] = useState<SortMode>("time");
   const [sortAscending, setSortAscending] = useState(true);
   const [touchDrag, setTouchDrag] = useState<{
     element: Element;
@@ -37,36 +42,26 @@ export default function Sidebar({ elements, onElementClick, onDeleteElement, onT
   }, [elements, searchQuery]);
 
   const sortedElements = useMemo(() => {
-    const baseElementOrder = ["water", "fire", "wind", "earth"];
-    
     let sorted = [...filteredElements];
-    
-    if (sortMode === "discoveries") {
-      sorted.sort((a, b) => {
-        const aBaseIndex = baseElementOrder.indexOf(a.id);
-        const bBaseIndex = baseElementOrder.indexOf(b.id);
-        const aIsBase = aBaseIndex !== -1;
-        const bIsBase = bBaseIndex !== -1;
-        
-        if (aIsBase && bIsBase) return aBaseIndex - bBaseIndex;
-        if (aIsBase && !bIsBase) return -1;
-        if (!aIsBase && bIsBase) return 1;
-        return a.name.localeCompare(b.name);
-      });
-    } else {
-      sorted.sort((a, b) => {
-        const aBaseIndex = baseElementOrder.indexOf(a.id);
-        const bBaseIndex = baseElementOrder.indexOf(b.id);
-        const aIsBase = aBaseIndex !== -1;
-        const bIsBase = bBaseIndex !== -1;
-        
-        if (aIsBase && bIsBase) return aBaseIndex - bBaseIndex;
-        if (aIsBase && !bIsBase) return -1;
-        if (!aIsBase && bIsBase) return 1;
-        return 0;
-      });
+
+    switch (sortMode) {
+      case "time":
+        // Keep discovery order (array order)
+        break;
+      case "name":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "emoji":
+        sorted.sort((a, b) => a.emoji.localeCompare(b.emoji));
+        break;
+      case "length":
+        sorted.sort((a, b) => a.name.length - b.name.length);
+        break;
+      case "random":
+        sorted.sort(() => Math.random() - 0.5);
+        break;
     }
-    
+
     return sortAscending ? sorted : [...sorted].reverse();
   }, [filteredElements, sortMode, sortAscending]);
 
@@ -90,7 +85,7 @@ export default function Sidebar({ elements, onElementClick, onDeleteElement, onT
       }}
     >
       {/* Elements grid */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-3 pb-1">
         <div className="flex flex-wrap gap-2">
           {sortedElements.map((element) => {
             const isBaseElement = ["water", "fire", "wind", "earth"].includes(element.id);
@@ -182,61 +177,173 @@ export default function Sidebar({ elements, onElementClick, onDeleteElement, onT
         </div>
       </div>
 
-      {/* Bottom bar with tabs */}
-      <div 
-        className="flex items-center"
+      {/* Bottom bar with tabs + sort + delete */}
+      <div
+        className="relative flex items-center text-[11px]"
         style={{
-          backgroundColor: 'var(--sidebar-bg)',
-          borderTop: '1px solid var(--border-color)'
+          backgroundColor: "var(--sidebar-bg)",
+          borderTop: "1px solid var(--border-color)",
         }}
       >
+        {/* Discoveries label / button */}
         <button
-          onClick={() => setSortMode("discoveries")}
-          className={`flex-1 flex items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium transition-colors
-            ${sortMode === "discoveries" ? "text-blue-500" : ""}`}
-          style={sortMode === "discoveries" ? { backgroundColor: 'rgba(59, 130, 246, 0.1)' } : undefined}
+          className="px-2 py-2 font-medium text-blue-500"
+          style={{ backgroundColor: "rgba(59, 130, 246, 0.1)" }}
         >
-          <span>✨</span>
-          <span>Discoveries</span>
-        </button>
-        
-        <button
-          onClick={() => setSortMode("time")}
-          className={`flex-1 flex items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium transition-colors
-            ${sortMode === "time" ? "text-blue-500" : ""}`}
-          style={sortMode === "time" ? { backgroundColor: 'rgba(59, 130, 246, 0.1)' } : undefined}
-        >
-          <span>🕐</span>
-          <span>Time</span>
+          Discoveries
         </button>
 
+        {/* Sort by menu trigger */}
+        <div className="flex-1">
+          <details className="relative">
+            <summary
+              className="flex items-center justify-center gap-1 px-2 py-2 cursor-pointer list-none select-none"
+            >
+              <span className="inline-flex items-center gap-1">
+                <span className="text-[11px]">
+                  {sortMode === "time" && "⏱"}
+                  {sortMode === "name" && "A"}
+                  {sortMode === "emoji" && "☺"}
+                  {sortMode === "length" && "✎"}
+                  {sortMode === "random" && "?"}
+                </span>
+                <span>
+                  {sortMode === "time" && "Sort by time"}
+                  {sortMode === "name" && "Sort by name"}
+                  {sortMode === "emoji" && "Sort by emoji"}
+                  {sortMode === "length" && "Sort by length"}
+                  {sortMode === "random" && "Sort by random"}
+                </span>
+              </span>
+              <svg
+                className={`w-3 h-3 transform ${sortAscending ? "" : "rotate-180"}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </summary>
+            <div className="absolute bottom-full mb-1 left-2 right-2 rounded-xl border bg-white text-[11px] shadow-lg dark:bg-[#111111] dark:border-[#272727]">
+              <button
+                className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-zinc-800"
+                onClick={() => {
+                  setSortMode("time");
+                  (document.activeElement as HTMLElement | null)?.blur();
+                }}
+              >
+                <span className="text-[11px]">
+                  ⏱
+                </span>
+                <span>Sort by time</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-zinc-800"
+                onClick={() => {
+                  setSortMode("name");
+                  (document.activeElement as HTMLElement | null)?.blur();
+                }}
+              >
+                <span className="text-[11px]">
+                  A
+                </span>
+                <span>Sort by name</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-zinc-800"
+                onClick={() => {
+                  setSortMode("emoji");
+                  (document.activeElement as HTMLElement | null)?.blur();
+                }}
+              >
+                <span className="text-[11px]">
+                  ☺
+                </span>
+                <span>Sort by emoji</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-zinc-800"
+                onClick={() => {
+                  setSortMode("length");
+                  (document.activeElement as HTMLElement | null)?.blur();
+                }}
+              >
+                <span className="text-[11px]">
+                  ✎
+                </span>
+                <span>Sort by length</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-zinc-800"
+                onClick={() => {
+                  setSortMode("random");
+                  (document.activeElement as HTMLElement | null)?.blur();
+                }}
+              >
+                <span className="text-[11px]">
+                  ?
+                </span>
+                <span>Sort by random</span>
+              </button>
+            </div>
+          </details>
+        </div>
+
+        {/* Asc / desc toggle */}
         <button
           onClick={() => setSortAscending(!sortAscending)}
-          className="px-3 py-2.5 transition-colors"
-          style={{ borderLeft: '1px solid var(--border-color)' }}
+          className="px-2 py-2"
+          style={{ borderLeft: "1px solid var(--border-color)" }}
           title={sortAscending ? "Sort descending" : "Sort ascending"}
         >
-          <svg 
-            className={`w-4 h-4 transition-transform ${sortAscending ? "" : "rotate-180"}`} 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            className={`w-4 h-4 transition-transform ${
+              sortAscending ? "" : "rotate-180"
+            }`}
+            fill="none"
+            stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
           </svg>
         </button>
 
+        {/* Delete mode toggle */}
         <button
           onClick={() => setDeleteMode(!deleteMode)}
-          className={`px-3 py-2.5 transition-colors ${deleteMode ? "text-red-500" : ""}`}
-          style={{ 
-            borderLeft: '1px solid var(--border-color)',
-            backgroundColor: deleteMode ? 'rgba(239, 68, 68, 0.1)' : undefined
+          className={`px-2 py-2 text-[11px] transition-colors ${
+            deleteMode ? "text-red-500" : ""
+          }`}
+          style={{
+            borderLeft: "1px solid var(--border-color)",
+            backgroundColor: deleteMode
+              ? "rgba(239, 68, 68, 0.1)"
+              : undefined,
           }}
           title={deleteMode ? "Exit delete mode" : "Delete items"}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
           </svg>
         </button>
       </div>

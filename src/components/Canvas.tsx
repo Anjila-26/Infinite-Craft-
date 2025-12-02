@@ -190,29 +190,31 @@ export default function Canvas({
         return;
       }
 
-      // 1) If released above the sidebar edge, delete the element
-      //    - On mobile: bottom sidebar → delete when near the top of the bottom bar
-      //    - On desktop: right sidebar → delete when near the left edge of the right bar
+      // 1) If released over the sidebar area, delete the element
+      //    - On mobile: bottom sidebar → delete when element is in the bottom sidebar area
+      //    - On desktop: right sidebar → delete when element is in the right sidebar area
       const canvasRect = canvasRef.current?.getBoundingClientRect();
       if (canvasRect) {
         const isMobile = window.innerWidth < 768;
-        const deleteMargin = 40; // how tall/wide the delete zone is
-
+        
         const sidebarHeightMobile = 220; // must match Sidebar mobile height
         const sidebarWidthDesktop = 280; // must match Sidebar desktop width
 
-        const sidebarTop = canvasRect.height - sidebarHeightMobile;
-        const sidebarLeft = canvasRect.width - sidebarWidthDesktop;
+        // Get the actual screen position of the element center
+        const elementScreenX = canvasRect.left + draggingElement.x;
+        const elementScreenY = canvasRect.top + draggingElement.y;
+        
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
 
+        // Check if element is actually over the sidebar area
         const inDeleteZoneMobile =
           isMobile &&
-          draggingElement.y >= sidebarTop - deleteMargin &&
-          draggingElement.y <= sidebarTop + sidebarHeightMobile;
+          elementScreenY >= screenHeight - sidebarHeightMobile;
 
         const inDeleteZoneDesktop =
           !isMobile &&
-          draggingElement.x >= sidebarLeft - deleteMargin &&
-          draggingElement.x <= sidebarLeft + sidebarWidthDesktop;
+          elementScreenX >= screenWidth - sidebarWidthDesktop;
 
         if (inDeleteZoneMobile || inDeleteZoneDesktop) {
           onRemoveElement(draggingId);
@@ -307,7 +309,9 @@ export default function Canvas({
   return (
     <div
       ref={canvasRef}
-      className="fixed inset-0 z-30 pointer-events-none"
+      data-canvas-container
+      className="fixed inset-0 z-30"
+      style={{ pointerEvents: 'auto' }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragEnter={(e) => {
