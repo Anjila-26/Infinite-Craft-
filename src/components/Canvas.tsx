@@ -233,7 +233,7 @@ export default function Canvas({
   return (
     <div
       ref={canvasRef}
-      className="fixed top-0 left-0 right-[280px] bottom-0 z-20"
+      className="fixed top-0 left-0 right-0 bottom-[260px] md:right-[280px] md:bottom-0 z-20"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragEnter={(e) => {

@@ -17,8 +17,8 @@ export default function Header({
 }: HeaderProps) {
   return (
     <>
-      {/* Top header with logo and title - stops before sidebar */}
-      <header className="fixed top-0 left-0 right-[280px] flex items-start justify-between px-5 py-4 z-50">
+      {/* Top header with logo and title */}
+      <header className="fixed top-0 left-0 right-0 md:right-[280px] flex items-start justify-between px-5 py-4 z-50">
         {/* Logo - top left */}
         <a
           href="#"
@@ -46,7 +46,7 @@ export default function Header({
       </header>
 
       {/* Bottom left controls */}
-      <div className="fixed bottom-4 left-4 flex items-center gap-1 z-50">
+      <div className="fixed left-4 bottom-[240px] md:bottom-4 flex items-center gap-1 z-50">
         {/* Dark mode toggle */}
         <button
           onClick={onToggleDarkMode}

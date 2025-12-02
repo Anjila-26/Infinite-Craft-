@@ -74,10 +74,10 @@ export default function Sidebar({ elements, onElementClick, onDeleteElement }: S
 
   return (
     <div 
-      className="fixed top-0 right-0 bottom-0 w-[280px] z-40 flex flex-col"
+      className="fixed inset-x-0 bottom-0 h-[220px] z-40 flex flex-col md:top-0 md:right-0 md:bottom-0 md:left-auto md:w-[280px] md:h-auto"
       style={{
         backgroundColor: 'var(--sidebar-bg)',
-        borderLeft: '1px solid var(--border-color)'
+        borderTop: '1px solid var(--border-color)',
       }}
     >
       {/* Elements grid */}
