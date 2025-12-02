@@ -21,42 +21,66 @@ function seededRandom(seed: number) {
   return x - Math.floor(x);
 }
 
-// Generate initial star positions with random velocities
-function generateStars(count: number) {
+// Generate stars in a repeating tile pattern
+// Each tile is 2000x2000 units, and we generate multiple tiles
+function generateStars(count: number, tileSize: number = 2000, tilesX: number = 3, tilesY: number = 3) {
   const stars: Star[] = [];
+  let starId = 0;
   
-  for (let i = 0; i < count; i++) {
-    // Random positions across the screen
-    const initialX = seededRandom(i * 2) * 100;
-    const initialY = seededRandom(i * 3) * 100;
-    
-      // Assign one of three colors with better distribution
-      // Use a combination of index and random seed for more even distribution
-      const colorSeed = (i + Math.floor(seededRandom(i * 17) * 10)) % 3;
-      const color: 'white' | 'gray' | 'medium' = 
-        colorSeed === 0 ? 'white' : 
-        colorSeed === 1 ? 'gray' : 
-        'medium';
+  // Generate stars for each tile
+  for (let tileY = 0; tileY < tilesY; tileY++) {
+    for (let tileX = 0; tileX < tilesX; tileX++) {
+      const tileOffsetX = tileX * tileSize;
+      const tileOffsetY = tileY * tileSize;
       
-      stars.push({
-      id: i,
-      x: initialX,
-      y: initialY,
-      // Ensure velocities are varied and not too small - range from -0.015 to 0.015
-      vx: (seededRandom(i * 5) - 0.5) * 0.03,
-      vy: (seededRandom(i * 7) - 0.5) * 0.03,
-      size: seededRandom(i * 11) * 2 + 4, // Smaller dots: 4-6px
-      targetX: initialX,
-      targetY: initialY,
-      color: color,
-    });
+      // Generate stars within this tile (same pattern for each tile)
+      for (let i = 0; i < count; i++) {
+        // Use unique seed per tile to ensure different positions
+        const uniqueSeed = tileX * 1000 + tileY * 10000 + i;
+        // Use tile-relative position (0 to tileSize) then add tile offset
+        const tileXPos = seededRandom(uniqueSeed * 2) * tileSize;
+        const tileYPos = seededRandom(uniqueSeed * 3) * tileSize;
+        
+        const initialX = tileOffsetX + tileXPos;
+        const initialY = tileOffsetY + tileYPos;
+        
+        // Assign one of three colors with better distribution
+        const colorSeed = (uniqueSeed + Math.floor(seededRandom(uniqueSeed * 17) * 10)) % 3;
+        const color: 'white' | 'gray' | 'medium' = 
+          colorSeed === 0 ? 'white' : 
+          colorSeed === 1 ? 'gray' : 
+          'medium';
+        
+        stars.push({
+          id: starId++,
+          x: initialX,
+          y: initialY,
+          vx: (seededRandom(uniqueSeed * 5) - 0.5) * 0.08,
+          vy: (seededRandom(uniqueSeed * 7) - 0.5) * 0.08,
+          size: seededRandom(uniqueSeed * 11) * 2 + 4,
+          targetX: initialX,
+          targetY: initialY,
+          color: color,
+        });
+      }
+    }
   }
   
   return stars;
 }
 
 export default function ConstellationBackground() {
-  const [stars] = useState<Star[]>(() => generateStars(60)); // More dots: 60
+  const tileSize = 2000; // Size of each repeating tile
+  // Generate a smaller base pattern that repeats seamlessly
+  // The modulo wrapping will make it appear infinite
+  const tilesX = 5; // Number of tiles horizontally (covers 10,000px base pattern)
+  const tilesY = 5; // Number of tiles vertically (covers 10,000px base pattern)
+  const starsPerTile = 50; // Stars per tile (reduced for performance)
+  
+  // Use lazy initialization to prevent blocking
+  const [stars] = useState<Star[]>(() => {
+    return generateStars(starsPerTile, tileSize, tilesX, tilesY);
+  });
   const starsRef = useRef<Star[]>(stars);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -74,7 +98,14 @@ export default function ConstellationBackground() {
     const svg = svgRef.current;
     if (!container || !svg) return;
 
-    const starElements = Array.from(container.querySelectorAll('.star-floating')) as HTMLElement[];
+    // Wait for stars to be rendered before starting animation
+    const getStarElements = () => {
+      return Array.from(container.querySelectorAll('.star-floating')) as HTMLElement[];
+    };
+    
+    // Store tile dimensions for use in animation
+    const totalWidth = tileSize * tilesX;
+    const totalHeight = tileSize * tilesY;
     
     // Continuous animation loop for stars
     let animationFrameId: number;
@@ -84,6 +115,9 @@ export default function ConstellationBackground() {
       const deltaTime = Math.min(currentTime - lastUpdateTime, 100); // Cap deltaTime to prevent large jumps
       lastUpdateTime = currentTime;
       
+      // Get star elements fresh each frame (in case DOM changes)
+      const starElements = getStarElements();
+      
       // Update star positions continuously
       starsRef.current.forEach((star, index) => {
         // Calculate new position based on velocity (normalize to ~60fps)
@@ -92,22 +126,10 @@ export default function ConstellationBackground() {
         let newVx = star.vx;
         let newVy = star.vy;
 
-        // Bounce off edges with proper boundary handling
-        if (newX < 0) {
-          newX = 0;
-          newVx = Math.abs(star.vx); // Ensure positive velocity
-        } else if (newX > 100) {
-          newX = 100;
-          newVx = -Math.abs(star.vx); // Ensure negative velocity
-        }
-        
-        if (newY < 0) {
-          newY = 0;
-          newVy = Math.abs(star.vy); // Ensure positive velocity
-        } else if (newY > 100) {
-          newY = 100;
-          newVy = -Math.abs(star.vy); // Ensure negative velocity
-        }
+        // Wrap around edges for infinite scrolling using modulo
+        // This creates seamless tiling
+        newX = ((newX % totalWidth) + totalWidth) % totalWidth;
+        newY = ((newY % totalHeight) + totalHeight) % totalHeight;
 
         // Update star data
         starsRef.current[index] = {
@@ -120,23 +142,27 @@ export default function ConstellationBackground() {
           targetY: newY,
         };
 
-        // Update DOM position smoothly
+        // Update DOM position smoothly (convert to pixels)
         const element = starElements[index];
         if (element) {
-          element.style.left = `${newX}%`;
-          element.style.top = `${newY}%`;
+          element.style.left = `${newX}px`;
+          element.style.top = `${newY}px`;
         }
       });
 
       animationFrameId = requestAnimationFrame(animateStars);
     };
+    
+    // Start animation after a small delay to ensure DOM is ready
+    const startTimeout = setTimeout(() => {
+      animationFrameId = requestAnimationFrame(animateStars);
+    }, 100);
 
-    // Start continuous animation
-    animationFrameId = requestAnimationFrame(animateStars);
+    // Animation will start after timeout
 
     // Update lines continuously using requestAnimationFrame for smooth updates
     let lastLineUpdate = 0;
-    const lineUpdateInterval = 100; // Update lines every 100ms
+    const lineUpdateInterval = 300; // Update lines every 300ms (slower for better performance)
     
     const updateLines = (timestamp: number) => {
       if (timestamp - lastLineUpdate < lineUpdateInterval) {
@@ -147,14 +173,34 @@ export default function ConstellationBackground() {
 
       const currentStars = starsRef.current;
       const activeLines = new Map<string, { x1: number; y1: number; x2: number; y2: number; opacity: number }>();
-      const connectionDistance = 12; // Connection distance for lines
+      const connectionDistance = 150; // Connection distance for lines (in pixels, increased for pixel coordinates)
+      const connectionDistanceSq = connectionDistance * connectionDistance; // Use squared distance to avoid sqrt
+
+      // Optimize: only check nearby stars (within connectionDistance * 2)
+      const checkRadius = connectionDistance * 1.5; // Reduced check radius for better performance
+      const checkRadiusSq = checkRadius * checkRadius;
+
+      // Further optimization: limit the number of connections per star
+      const maxConnectionsPerStar = 5;
+      const starConnections = new Map<number, number>();
 
       for (let i = 0; i < currentStars.length; i++) {
+        if (starConnections.get(i) && starConnections.get(i)! >= maxConnectionsPerStar) continue;
+        
         for (let j = i + 1; j < currentStars.length; j++) {
+          if (starConnections.get(j) && starConnections.get(j)! >= maxConnectionsPerStar) continue;
+          
           const dx = currentStars[i].x - currentStars[j].x;
           const dy = currentStars[i].y - currentStars[j].y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
+          
+          // Quick check: skip if definitely too far (using squared distance)
+          const distSq = dx * dx + dy * dy;
+          if (distSq > checkRadiusSq) continue;
+          
+          // Check direct distance
+          let distance = Math.sqrt(distSq);
+          
+          // Skip wrapped distance check for performance (only check if very close)
           if (distance < connectionDistance) {
             const opacity = 1 - distance / connectionDistance;
             const lineKey = `${i}-${j}`;
@@ -165,6 +211,10 @@ export default function ConstellationBackground() {
               y2: currentStars[j].y,
               opacity: opacity * 0.4, // Line opacity based on distance
             });
+            
+            // Track connections per star
+            starConnections.set(i, (starConnections.get(i) || 0) + 1);
+            starConnections.set(j, (starConnections.get(j) || 0) + 1);
           }
         }
       }
@@ -201,20 +251,20 @@ export default function ConstellationBackground() {
         });
 
         if (lineElement) {
-          // Update line positions directly for smooth real-time updates
-          lineElement.setAttribute('x1', `${lineData.x1}%`);
-          lineElement.setAttribute('y1', `${lineData.y1}%`);
-          lineElement.setAttribute('x2', `${lineData.x2}%`);
-          lineElement.setAttribute('y2', `${lineData.y2}%`);
+          // Update line positions directly for smooth real-time updates (convert to pixels)
+          lineElement.setAttribute('x1', `${lineData.x1}`);
+          lineElement.setAttribute('y1', `${lineData.y1}`);
+          lineElement.setAttribute('x2', `${lineData.x2}`);
+          lineElement.setAttribute('y2', `${lineData.y2}`);
           lineElement.setAttribute('opacity', String(lineData.opacity));
         } else {
           // Create new line immediately
           const newLineId = lineIdCounterRef.current++;
           const newLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          newLine.setAttribute('x1', `${lineData.x1}%`);
-          newLine.setAttribute('y1', `${lineData.y1}%`);
-          newLine.setAttribute('x2', `${lineData.x2}%`);
-          newLine.setAttribute('y2', `${lineData.y2}%`);
+          newLine.setAttribute('x1', `${lineData.x1}`);
+          newLine.setAttribute('y1', `${lineData.y1}`);
+          newLine.setAttribute('x2', `${lineData.x2}`);
+          newLine.setAttribute('y2', `${lineData.y2}`);
           newLine.setAttribute('opacity', String(lineData.opacity));
           newLine.setAttribute('data-line-key', lineKey);
           newLine.setAttribute('class', 'stroke-gray-400 dark:stroke-gray-600');
@@ -234,6 +284,7 @@ export default function ConstellationBackground() {
 
     return () => {
       // Cleanup animations
+      clearTimeout(startTimeout);
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -246,21 +297,53 @@ export default function ConstellationBackground() {
     };
   }, []);
 
-  return (
-    <div ref={containerRef} className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-      {/* Constellation lines */}
-      <svg ref={svgRef} className="absolute inset-0 w-full h-full" />
+  const totalWidth = tileSize * tilesX;
+  const totalHeight = tileSize * tilesY;
+  
+  // Make the container very large for infinite scrolling
+  // Stars will repeat seamlessly using modulo wrapping
+  const infiniteWidth = 100000; // Large enough to feel infinite
+  const infiniteHeight = 100000; // Large enough to feel infinite
 
-      {/* Stars */}
+  return (
+    <div 
+      ref={containerRef} 
+      className="absolute pointer-events-none z-0"
+      style={{
+        width: `${infiniteWidth}px`,
+        height: `${infiniteHeight}px`,
+        top: 0,
+        left: 0,
+        backgroundImage: `repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent ${tileSize}px,
+          transparent ${tileSize}px
+        )`,
+      }}
+    >
+      {/* Constellation lines */}
+      <svg 
+        ref={svgRef} 
+        className="absolute w-full h-full"
+        style={{
+          width: `${infiniteWidth}px`,
+          height: `${infiniteHeight}px`,
+        }}
+      />
+
+      {/* Stars - use CSS transforms for infinite tiling effect */}
       {stars.map((star) => (
         <div
           key={star.id}
           className={`star-floating star-${star.color}`}
           style={{
-            left: `${star.x}%`,
-            top: `${star.y}%`,
+            left: `${star.x}px`,
+            top: `${star.y}px`,
             width: `${star.size}px`,
             height: `${star.size}px`,
+            // Create infinite tiling effect using CSS
+            position: 'absolute',
           }}
         />
       ))}

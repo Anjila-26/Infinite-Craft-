@@ -412,7 +412,13 @@ export default function Game() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="relative bg-[var(--background)] text-[var(--foreground)]" style={{ 
+      position: 'relative',
+      width: '50000px',
+      height: '50000px',
+      minHeight: '100vh',
+      minWidth: '100vw',
+    }}>
       <ConstellationBackground />
       
       <Header
