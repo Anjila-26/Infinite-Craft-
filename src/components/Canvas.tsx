@@ -121,18 +121,12 @@ export default function Canvas({
     e.dataTransfer.dropEffect = "move";
   }, []);
 
-  // Handle dragging canvas elements - mouse down starts drag
-  const handleElementMouseDown = (
-    e: React.MouseEvent<HTMLDivElement>,
-    canvasElement: CanvasElement
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+  // Handle dragging canvas elements - mouse / touch start drag
+  const startDrag = (clientX: number, clientY: number, canvasElement: CanvasElement) => {
     setDraggingId(canvasElement.id);
     setDragStart({
-      mouseX: e.clientX,
-      mouseY: e.clientY,
+      mouseX: clientX,
+      mouseY: clientY,
       elementX: canvasElement.x,
       elementY: canvasElement.y,
     });
@@ -142,7 +136,27 @@ export default function Canvas({
     }
   };
 
-  // Global mouse move handler for smoother dragging
+  const handleElementMouseDown = (
+    e: React.MouseEvent<HTMLDivElement>,
+    canvasElement: CanvasElement
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startDrag(e.clientX, e.clientY, canvasElement);
+  };
+
+  const handleElementTouchStart = (
+    e: React.TouchEvent<HTMLDivElement>,
+    canvasElement: CanvasElement
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.touches[0];
+    if (!touch) return;
+    startDrag(touch.clientX, touch.clientY, canvasElement);
+  };
+
+  // Global mouse/touch move handler for smoother dragging
   useEffect(() => {
     if (!draggingId || !dragStart) return;
 
@@ -176,18 +190,31 @@ export default function Canvas({
         return;
       }
 
-      // 1) If released near sidebar edge, delete the element
-      //    - On mobile: bottom sidebar → delete when near bottom of canvas
-      //    - On desktop: right sidebar → delete when near right edge of canvas
+      // 1) If released above the sidebar edge, delete the element
+      //    - On mobile: bottom sidebar → delete when near the top of the bottom bar
+      //    - On desktop: right sidebar → delete when near the left edge of the right bar
       const canvasRect = canvasRef.current?.getBoundingClientRect();
       if (canvasRect) {
         const isMobile = window.innerWidth < 768;
-        const deleteMargin = 64; // pixels from edge
+        const deleteMargin = 40; // how tall/wide the delete zone is
 
-        const nearBottom = isMobile && draggingElement.y > canvasRect.height - deleteMargin;
-        const nearRight = !isMobile && draggingElement.x > canvasRect.width - deleteMargin;
+        const sidebarHeightMobile = 220; // must match Sidebar mobile height
+        const sidebarWidthDesktop = 280; // must match Sidebar desktop width
 
-        if (nearBottom || nearRight) {
+        const sidebarTop = canvasRect.height - sidebarHeightMobile;
+        const sidebarLeft = canvasRect.width - sidebarWidthDesktop;
+
+        const inDeleteZoneMobile =
+          isMobile &&
+          draggingElement.y >= sidebarTop - deleteMargin &&
+          draggingElement.y <= sidebarTop + sidebarHeightMobile;
+
+        const inDeleteZoneDesktop =
+          !isMobile &&
+          draggingElement.x >= sidebarLeft - deleteMargin &&
+          draggingElement.x <= sidebarLeft + sidebarWidthDesktop;
+
+        if (inDeleteZoneMobile || inDeleteZoneDesktop) {
           onRemoveElement(draggingId);
           setDraggingId(null);
           setDragStart(null);
@@ -217,14 +244,41 @@ export default function Canvas({
       setHoveredElementId(null);
     };
 
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      const deltaX = touch.clientX - dragStart.mouseX;
+      const deltaY = touch.clientY - dragStart.mouseY;
+
+      const newX = dragStart.elementX + deltaX;
+      const newY = dragStart.elementY + deltaY;
+
+      onMoveElement(draggingId, newX, newY);
+
+      const draggingElement = canvasElements.find((el) => el.id === draggingId);
+      if (draggingElement) {
+        const updatedDragging = { ...draggingElement, x: newX, y: newY };
+        const collidingElement = findCollidingElement(updatedDragging);
+        setHoveredElementId(collidingElement?.id || null);
+      }
+    };
+
+    const handleGlobalTouchEnd = () => {
+      handleGlobalMouseUp();
+    };
+
     window.addEventListener("mousemove", handleGlobalMouseMove);
     window.addEventListener("mouseup", handleGlobalMouseUp);
+    window.addEventListener("touchmove", handleGlobalTouchMove, { passive: false });
+    window.addEventListener("touchend", handleGlobalTouchEnd);
 
     return () => {
       window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("mouseup", handleGlobalMouseUp);
+      window.removeEventListener("touchmove", handleGlobalTouchMove);
+      window.removeEventListener("touchend", handleGlobalTouchEnd);
     };
-  }, [draggingId, dragStart, canvasElements, onMoveElement, onCombineElements, soundEnabled, findCollidingElement]);
+  }, [draggingId, dragStart, canvasElements, onMoveElement, onRemoveElement, onCombineElements, soundEnabled, findCollidingElement]);
 
   // Handle right-click to remove element
   const handleContextMenu = (e: React.MouseEvent, id: string) => {
@@ -253,7 +307,7 @@ export default function Canvas({
   return (
     <div
       ref={canvasRef}
-      className="fixed top-0 left-0 right-0 bottom-[260px] md:right-[280px] md:bottom-0 z-20"
+      className="fixed inset-0 z-30 pointer-events-none"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragEnter={(e) => {
@@ -271,7 +325,9 @@ export default function Canvas({
         return (
           <div
             key={canvasElement.id}
-            className={`absolute select-none ${canvasElement.id.startsWith("new-") ? "new-element-animation" : ""}`}
+            className={`absolute select-none pointer-events-auto ${
+              canvasElement.id.startsWith("new-") ? "new-element-animation" : ""
+            }`}
             style={{
               left: canvasElement.x,
               top: canvasElement.y,
@@ -280,6 +336,7 @@ export default function Canvas({
               cursor: isDragging ? "grabbing" : "grab",
             }}
             onMouseDown={(e) => handleElementMouseDown(e, canvasElement)}
+            onTouchStart={(e) => handleElementTouchStart(e, canvasElement)}
             onContextMenu={(e) => handleContextMenu(e, canvasElement.id)}
             onDoubleClick={(e) => handleDoubleClick(e, canvasElement)}
             // Allow this element to receive drops from sidebar

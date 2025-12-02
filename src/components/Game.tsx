@@ -315,14 +315,20 @@ export default function Game() {
   // Handle click on sidebar element - spawn at random position
   const handleElementClick = useCallback(
     (element: Element) => {
-      // Generate random position within visible canvas area (accounting for sidebar on right)
-      const canvasWidth = window.innerWidth - 280; // Subtract sidebar width
-      const canvasHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const isMobile = viewportWidth < 768;
+
+      const sidebarWidthDesktop = 280;
+      const sidebarHeightMobile = 220;
+
+      const canvasWidth = isMobile ? viewportWidth : viewportWidth - sidebarWidthDesktop;
+      const canvasHeight = isMobile ? viewportHeight - sidebarHeightMobile : viewportHeight;
       
       // Add some padding from edges
       const padding = 80;
-      const x = padding + Math.random() * (canvasWidth - 2 * padding);
-      const y = padding + Math.random() * (canvasHeight - 2 * padding);
+      const x = padding + Math.random() * Math.max(40, canvasWidth - 2 * padding);
+      const y = padding + Math.random() * Math.max(40, canvasHeight - 2 * padding);
 
       const newCanvasElement: CanvasElement = {
         id: generateId(),
@@ -338,6 +344,41 @@ export default function Game() {
       }
     },
     [handleAddElement, soundEnabled]
+  );
+
+  // Mobile: handle touch drop from sidebar to canvas (position in viewport coords)
+  const handleSidebarTouchDrop = useCallback(
+    (element: Element, clientX: number, clientY: number) => {
+      // First, see if we're dropping on top of an existing canvas element → combine
+      const collisionThreshold = 60;
+      const target = canvasElements.find((canvasEl) => {
+        const dx = canvasEl.x - clientX;
+        const dy = canvasEl.y - clientY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < collisionThreshold;
+      });
+
+      if (target) {
+        // Combine sidebar element with this canvas element
+        handleCombineSidebarWithElement(element.id, target.id);
+        return;
+      }
+
+      // Otherwise, just add the element to the canvas at this position
+      const newCanvasElement: CanvasElement = {
+        id: generateId(),
+        elementId: element.id,
+        x: clientX,
+        y: clientY,
+      };
+
+      handleAddElement(newCanvasElement);
+
+      if (soundEnabled && soundManager) {
+        soundManager.playDrop();
+      }
+    },
+    [canvasElements, handleCombineSidebarWithElement, handleAddElement, soundEnabled]
   );
 
   // Don't render until mounted (to avoid hydration issues)
@@ -372,6 +413,7 @@ export default function Game() {
         elements={elements} 
         onElementClick={handleElementClick}
         onDeleteElement={handleDeleteElement}
+        onTouchDropFromSidebar={handleSidebarTouchDrop}
       />
 
       <ClearModal

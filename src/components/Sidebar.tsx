@@ -1,21 +1,30 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Element } from "@/types";
 
 interface SidebarProps {
   elements: Element[];
   onElementClick: (element: Element) => void;
   onDeleteElement: (elementId: string) => void;
+  // Mobile: custom touch drag-drop from sidebar to canvas
+  onTouchDropFromSidebar?: (element: Element, clientX: number, clientY: number) => void;
 }
 
 type SortMode = "discoveries" | "time";
 
-export default function Sidebar({ elements, onElementClick, onDeleteElement }: SidebarProps) {
+export default function Sidebar({ elements, onElementClick, onDeleteElement, onTouchDropFromSidebar }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteMode, setDeleteMode] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("discoveries");
   const [sortAscending, setSortAscending] = useState(true);
+  const [touchDrag, setTouchDrag] = useState<{
+    element: Element;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const lastDragTimeRef = useRef(0);
 
   const filteredElements = useMemo(() => {
     if (!searchQuery.trim()) return elements;
@@ -102,10 +111,55 @@ export default function Sidebar({ elements, onElementClick, onDeleteElement }: S
                   e.dataTransfer.setData("text/plain", JSON.stringify(element));
                   e.dataTransfer.effectAllowed = "all";
                 }}
-                onClick={(e) => {
-                  // Don't trigger click if this was a drag
-                  if (e.detail === 0) return;
+                onClick={() => {
+                  // Avoid ghost click right after a drag
+                  if (Date.now() - lastDragTimeRef.current < 300) return;
                   handleElementClick(element);
+                }}
+                onTouchStart={(e) => {
+                  if (deleteMode || !onTouchDropFromSidebar) return;
+                  const touch = e.touches[0];
+                  if (!touch) return;
+                  setTouchDrag({
+                    element,
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    moved: false,
+                  });
+                }}
+                onTouchMove={(e) => {
+                  if (!touchDrag || !onTouchDropFromSidebar) return;
+                  const touch = e.touches[0];
+                  if (!touch) return;
+                  // Prevent scrolling when actually dragging
+                  e.preventDefault();
+                  setTouchDrag((prev) => {
+                    if (!prev || prev.element.id !== element.id) return prev;
+                    const dx = touch.clientX - prev.x;
+                    const dy = touch.clientY - prev.y;
+                    const moved = prev.moved || Math.hypot(dx, dy) > 4;
+                    return {
+                      element: prev.element,
+                      x: touch.clientX,
+                      y: touch.clientY,
+                      moved,
+                    };
+                  });
+                }}
+                onTouchEnd={() => {
+                  if (!touchDrag || !onTouchDropFromSidebar) {
+                    setTouchDrag(null);
+                    return;
+                  }
+                  if (touchDrag.moved) {
+                    // Perform drop to canvas
+                    onTouchDropFromSidebar(touchDrag.element, touchDrag.x, touchDrag.y);
+                    lastDragTimeRef.current = Date.now();
+                  } else {
+                    // Treat as a tap
+                    handleElementClick(element);
+                  }
+                  setTouchDrag(null);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -212,6 +266,23 @@ export default function Sidebar({ elements, onElementClick, onDeleteElement }: S
           />
         </div>
       </div>
+
+      {/* Mobile drag ghost */}
+      {touchDrag && touchDrag.moved && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: touchDrag.x,
+            top: touchDrag.y,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          <div className="element">
+            <span className="text-base pointer-events-none">{touchDrag.element.emoji}</span>
+            <span className="pointer-events-none">{touchDrag.element.name}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
