@@ -211,6 +211,97 @@ export default function Game() {
     [canvasElements, elements, soundEnabled]
   );
 
+  // Combine a sidebar element directly with a canvas element (drag from menu onto canvas item)
+  const handleCombineSidebarWithElement = useCallback(
+    async (sidebarElementId: string, canvasElementId: string) => {
+      const targetCanvasEl = canvasElements.find((el) => el.id === canvasElementId);
+      if (!targetCanvasEl) return;
+
+      const elementData1 = elements.find((el) => el.id === sidebarElementId);
+      const elementData2 = elements.find((el) => el.id === targetCanvasEl.elementId);
+
+      if (!elementData1 || !elementData2) return;
+
+      try {
+        const response = await fetch("/api/craft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            element1: elementData1.name,
+            element2: elementData2.name,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.result === "Nothing") {
+          // Failed combination - if same elements, keep single element on canvas
+          if (sidebarElementId === targetCanvasEl.elementId) {
+            if (soundEnabled && soundManager) {
+              soundManager.playCombine();
+            }
+          } else {
+            if (soundEnabled && soundManager) {
+              soundManager.playError();
+            }
+          }
+          return;
+        }
+
+        // Position for new element: same as target canvas element
+        const newX = targetCanvasEl.x;
+        const newY = targetCanvasEl.y;
+
+        // Check if this is a new element
+        const newElementId = createElementId(data.result);
+
+        setElements((prev) => {
+          const existingElement = prev.find((el) => el.id === newElementId);
+          if (existingElement) {
+            if (soundEnabled && soundManager) {
+              soundManager.playCombine();
+            }
+            return prev;
+          }
+
+          const newElement: Element = {
+            id: newElementId,
+            name: data.result,
+            emoji: data.emoji,
+            discovered: true,
+            isFirstDiscovery: true,
+          };
+
+          if (soundEnabled && soundManager) {
+            soundManager.playDiscovery();
+          }
+
+          const updated = [...prev, newElement];
+          saveElements(updated);
+          return updated;
+        });
+
+        // Replace target canvas element with the new one
+        setCanvasElements((prev) => {
+          const filtered = prev.filter((el) => el.id !== canvasElementId);
+          const newCanvasElement: CanvasElement = {
+            id: `new-${generateId()}`,
+            elementId: newElementId,
+            x: newX,
+            y: newY,
+          };
+          return [...filtered, newCanvasElement];
+        });
+      } catch (error) {
+        console.error("Failed to combine sidebar and canvas elements", error);
+        if (soundEnabled && soundManager) {
+          soundManager.playError();
+        }
+      }
+    },
+    [canvasElements, elements, soundEnabled]
+  );
+
   // Clear canvas
   const handleClearCanvas = useCallback(() => {
     setShowClearModal(true);
@@ -273,6 +364,7 @@ export default function Game() {
         onMoveElement={handleMoveElement}
         onRemoveElement={handleRemoveElement}
         onCombineElements={handleCombineElements}
+        onCombineSidebarWithElement={handleCombineSidebarWithElement}
         soundEnabled={soundEnabled}
       />
 

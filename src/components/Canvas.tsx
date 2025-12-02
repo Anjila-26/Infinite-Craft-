@@ -12,6 +12,11 @@ interface CanvasProps {
   onMoveElement: (id: string, x: number, y: number) => void;
   onRemoveElement: (id: string) => void;
   onCombineElements: (id1: string, id2: string) => void;
+  // Combine a sidebar element (by element id) directly with a canvas element (by canvas id)
+  onCombineSidebarWithElement: (
+    sidebarElementId: string,
+    canvasElementId: string
+  ) => void;
   soundEnabled: boolean;
 }
 
@@ -22,6 +27,7 @@ export default function Canvas({
   onMoveElement,
   onRemoveElement,
   onCombineElements,
+  onCombineSidebarWithElement,
   soundEnabled,
 }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -83,21 +89,8 @@ export default function Canvas({
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < collisionThreshold) {
-            // Dropped on an element - combine them directly!
-            // Add the dropped element at the target location, then combine
-            const newId = generateId();
-            const newCanvasElement: CanvasElement = {
-              id: newId,
-              elementId: droppedElement.id,
-              x: canvasEl.x,
-              y: canvasEl.y,
-            };
-            
-            // Add element and immediately combine
-            onAddElement(newCanvasElement);
-            requestAnimationFrame(() => {
-              onCombineElements(newId, canvasEl.id);
-            });
+            // Dropped on an element - ask parent to combine sidebar element with this canvas element
+            onCombineSidebarWithElement(droppedElement.id, canvasEl.id);
             return;
           }
         }
@@ -119,7 +112,7 @@ export default function Canvas({
         console.error("Failed to parse dropped element", err);
       }
     },
-    [onAddElement, onCombineElements, canvasElements, soundEnabled]
+    [onAddElement, onCombineSidebarWithElement, canvasElements, soundEnabled]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -282,25 +275,15 @@ export default function Canvas({
               e.preventDefault();
               e.stopPropagation();
               setHoveredElementId(null);
-              
+
               let data = e.dataTransfer.getData("text/plain");
               if (!data) data = e.dataTransfer.getData("element");
               if (!data) return;
-              
+
               try {
                 const droppedElement = JSON.parse(data) as Element;
-                // Create new element and combine with this one
-                const newId = generateId();
-                const newCanvasEl: CanvasElement = {
-                  id: newId,
-                  elementId: droppedElement.id,
-                  x: canvasElement.x,
-                  y: canvasElement.y,
-                };
-                onAddElement(newCanvasEl);
-                requestAnimationFrame(() => {
-                  onCombineElements(newId, canvasElement.id);
-                });
+                // Ask parent to combine this canvas element with the sidebar element
+                onCombineSidebarWithElement(droppedElement.id, canvasElement.id);
               } catch (err) {
                 console.error("Drop error:", err);
               }
