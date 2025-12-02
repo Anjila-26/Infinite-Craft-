@@ -42,23 +42,36 @@ body {
 }
 
 /* Constellation background animation */
-@keyframes twinkle {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.9; }
-}
-
 .star-floating {
   position: absolute;
-  background: rgba(209, 213, 219, 0.8);
+  background: rgba(209, 213, 219, 0.9);
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: twinkle 3s infinite ease-in-out;
+  transform: translate(-50%, -50%) translateZ(0);
   pointer-events: none;
-  will-change: transform;
+  will-change: left, top;
+  transition: none;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-.dark .star-floating {
-  background: rgba(156, 163, 175, 0.7);
+/* Dark mode star colors */
+.dark .star-floating.star-white {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.dark .star-floating.star-gray {
+  background: rgba(156, 163, 175, 0.85);
+}
+
+.dark .star-floating.star-medium {
+  background: rgba(209, 213, 219, 0.9);
+}
+
+/* Optimize SVG lines for smooth animation */
+svg line {
+  will-change: x1, y1, x2, y2, opacity;
+  transition: none;
+  shape-rendering: optimizeSpeed;
 }
 
 /* Element styles */
